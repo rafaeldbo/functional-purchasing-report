@@ -4,24 +4,41 @@ open System
 open Xunit
 
 open Etl.Models
-open Etl.CoreFunctions
+open Etl.Utils 
+open Etl.Parsing   
+open Etl.Report
+
+// Data padrão usada nos testes
+let defaultDate = DateTime(2026, 1, 1)
+
+// Instâncias globais para facilitar manutenção dos testes
+let order1 = makeOrder 1 10 defaultDate Complete Online
+let order2_pending = makeOrder 2 20 defaultDate Pending Physical
+let order2_complete = makeOrder 2 20 defaultDate Complete Physical
+let order3 = makeOrder 3 30 defaultDate Complete Online
+
+let itemA = makeItem 1 100 2 50.0 0.10
+let itemB = makeItem 1 101 1 30.0 0.10
+let itemC = makeItem 2 200 3 20.0 0.10
+let itemD = makeItem 1 101 1 100.0 0.20
+let itemE = makeItem 2 200 4 25.0 0.10
+let itemF = makeItem 1 100 1 100.0 0.10
+let itemG = makeItem 1 100 3 10.0 1.0
+let itemH = makeItem 1 102 3 30.0 0.10
 
 // ── innerJoin – contagem e presença ───────────────────────────────────────
 
 [<Fact>]
 let ``innerJoin retorna combinações corretas`` () =
-    let orders = [ makeOrder 1 10 Complete Online; makeOrder 2 20 Pending Physical ]
+    let orders = [ order1; order2_pending ]
 
-    let items =
-        [ makeItem 1 100 2 50.0 0.10
-          makeItem 1 101 1 30.0 0.10
-          makeItem 2 200 3 20.0 0.10 ]
+    let items = [ itemA; itemB; itemC ]
 
     let result =
         innerJoin
-            (fun (o: Order) -> o.Id)
+            (fun (o: Order) -> o.OrderId)
             (fun (i: OrderItem) -> i.OrderId)
-            (fun (o: Order) (i: OrderItem) -> (o.Id, i.ProductId))
+            (fun (o: Order) (i: OrderItem) -> (o.OrderId, i.ProductId))
             orders
             items
 
@@ -32,14 +49,14 @@ let ``innerJoin retorna combinações corretas`` () =
 
 [<Fact>]
 let ``innerJoin exclui registros sem correspondência`` () =
-    let orders = [ makeOrder 1 10 Complete Online ]
+    let orders = [ makeOrder 1 10 defaultDate Complete Online ]
     let items = [ makeItem 99 100 1 10.0 0.10 ]
 
     let result =
         innerJoin
-            (fun (o: Order) -> o.Id)
+            (fun (o: Order) -> o.OrderId)
             (fun (i: OrderItem) -> i.OrderId)
-            (fun (o: Order) (i: OrderItem) -> (o.Id, i.ProductId))
+            (fun (o: Order) (i: OrderItem) -> (o.OrderId, i.ProductId))
             orders
             items
 
@@ -48,7 +65,7 @@ let ``innerJoin exclui registros sem correspondência`` () =
 [<Fact>]
 let ``innerJoin com listas vazias retorna lista vazia`` () =
     let result =
-        innerJoin (fun (o: Order) -> o.Id) (fun (i: OrderItem) -> i.OrderId) (fun o i -> (o.Id, i.ProductId)) [] []
+        innerJoin (fun (o: Order) -> o.OrderId) (fun (i: OrderItem) -> i.OrderId) (fun o i -> (o.OrderId, i.ProductId)) [] []
 
     Assert.Empty(result)
 
@@ -57,19 +74,19 @@ let ``innerJoin com lista esquerda vazia retorna lista vazia`` () =
     let items = [ makeItem 1 100 1 10.0 0.10 ]
 
     let result =
-        innerJoin (fun (o: Order) -> o.Id) (fun (i: OrderItem) -> i.OrderId) (fun o i -> (o.Id, i.ProductId)) [] items
+        innerJoin (fun (o: Order) -> o.OrderId) (fun (i: OrderItem) -> i.OrderId) (fun o i -> (o.OrderId, i.ProductId)) [] items
 
     Assert.Empty(result)
 
 [<Fact>]
 let ``innerJoin com lista direita vazia retorna lista vazia`` () =
-    let orders = [ makeOrder 1 10 Complete Online ]
+    let orders = [ order1 ]
 
     let result =
         innerJoin
-            (fun (o: Order) -> o.Id)
+            (fun (o: Order) -> o.OrderId)
             (fun (i: OrderItem) -> i.OrderId)
-            (fun (o: Order) (i: OrderItem) -> (o.Id, i.ProductId))
+            (fun (o: Order) (i: OrderItem) -> (o.OrderId, i.ProductId))
             orders
             []
 
@@ -77,15 +94,12 @@ let ``innerJoin com lista direita vazia retorna lista vazia`` () =
 
 [<Fact>]
 let ``innerJoin produz produto cartesiano quando há múltiplos matches`` () =
-    let orders = [ makeOrder 1 10 Complete Online ]
+    let orders = [ order1 ]
 
-    let items =
-        [ makeItem 1 100 1 10.0 0.10
-          makeItem 1 101 2 20.0 0.10
-          makeItem 1 102 3 30.0 0.10 ]
+    let items = [ itemA; itemB; itemH ]
 
     let result =
-        innerJoin (fun (o: Order) -> o.Id) (fun (i: OrderItem) -> i.OrderId) (fun o i -> i.ProductId) orders items
+        innerJoin (fun (o: Order) -> o.OrderId) (fun (i: OrderItem) -> i.OrderId) (fun o i -> i.ProductId) orders items
 
     Assert.Equal(3, result.Length)
     Assert.Contains(100, result)
@@ -95,22 +109,19 @@ let ``innerJoin produz produto cartesiano quando há múltiplos matches`` () =
 [<Fact>]
 let ``innerJoin omite pedidos sem nenhum item`` () =
     // pedido 3 não tem itens → não deve aparecer no resultado
-    let orders =
-        [ makeOrder 1 10 Complete Online
-          makeOrder 2 20 Pending Physical
-          makeOrder 3 30 Complete Online ]
+    let orders = [ order1; order2_pending; order3 ]
 
-    let items = [ makeItem 1 100 1 10.0 0.10; makeItem 2 200 1 20.0 0.10 ]
+    let items = [ itemA; itemC ]
 
     let result =
-        innerJoin (fun (o: Order) -> o.Id) (fun (i: OrderItem) -> i.OrderId) (fun o i -> o.Id) orders items
+        innerJoin (fun (o: Order) -> o.OrderId) (fun (i: OrderItem) -> i.OrderId) (fun o i -> o.OrderId) orders items
 
     Assert.DoesNotContain(3, result)
     Assert.Equal(2, result.Length)
 
 [<Fact>]
 let ``innerJoin propaga campos corretos da função de junção`` () =
-    let order = makeOrder 7 42 Complete Physical
+    let order = makeOrder 7 42 defaultDate Complete Physical
     let item = makeItem 7 999 5 15.50 0.10
 
     let result = joinOrderItems [ order ] [ item ]
@@ -127,7 +138,7 @@ let ``innerJoin propaga campos corretos da função de junção`` () =
 
 [<Fact>]
 let ``innerJoin com muitos pedidos e muitos itens retorna contagem correta`` () =
-    let orders = [ 1..10 ] |> List.map (fun i -> makeOrder i i Complete Online)
+    let orders = [ 1..10 ] |> List.map (fun i -> makeOrder i i defaultDate Complete Online)
     // 3 itens por pedido
     let items =
         [ 1..10 ]
@@ -138,9 +149,9 @@ let ``innerJoin com muitos pedidos e muitos itens retorna contagem correta`` () 
 
     let result =
         innerJoin
-            (fun (o: Order) -> o.Id)
+            (fun (o: Order) -> o.OrderId)
             (fun (i: OrderItem) -> i.OrderId)
-            (fun o i -> (o.Id, i.ProductId))
+            (fun o i -> (o.OrderId, i.ProductId))
             orders
             items
 
@@ -153,11 +164,11 @@ let ``calcOrderTotals calcula total e imposto médio ponderado corretamente`` ()
     // item1: 2 × 50.0 = 100.0, tax 10 % → taxAmt = 10.0
     // item2: 1 × 100.0 = 100.0, tax 20 % → taxAmt = 20.0
     // totalAmount = 200.0, avgTax = 30.0 / 200.0 = 0.15
-    let order = makeOrder 1 10 Complete Online
+    let order = order1
 
     let items =
-        [ toOrderItemWithInfo order (makeItem 1 100 2 50.0 0.10)
-          toOrderItemWithInfo order (makeItem 1 101 1 100.0 0.20) ]
+        [ toOrderItemWithInfo order itemA
+          toOrderItemWithInfo order itemD ]
 
     let totalAmount, avgTax = calcOrderTotals items
 
@@ -166,7 +177,7 @@ let ``calcOrderTotals calcula total e imposto médio ponderado corretamente`` ()
 
 [<Fact>]
 let ``calcOrderTotals com imposto uniforme retorna o mesmo percentual`` () =
-    let order = makeOrder 1 10 Complete Online
+    let order = makeOrder 1 10 defaultDate Complete Online
 
     let items =
         [ toOrderItemWithInfo order (makeItem 1 100 2 50.0 0.10)
@@ -180,7 +191,7 @@ let ``calcOrderTotals com imposto uniforme retorna o mesmo percentual`` () =
 
 [<Fact>]
 let ``calcOrderTotals com item único`` () =
-    let order = makeOrder 1 10 Complete Online
+    let order = makeOrder 1 10 defaultDate Complete Online
     let items = [ toOrderItemWithInfo order (makeItem 1 100 4 25.0 0.10) ]
 
     let totalAmount, avgTax = calcOrderTotals items
@@ -190,7 +201,7 @@ let ``calcOrderTotals com item único`` () =
 
 [<Fact>]
 let ``calcOrderTotals com tax zero retorna imposto zero`` () =
-    let order = makeOrder 1 10 Complete Online
+    let order = makeOrder 1 10 defaultDate Complete Online
 
     let items =
         [ toOrderItemWithInfo order (makeItem 1 100 2 50.0 0.0)
@@ -203,8 +214,8 @@ let ``calcOrderTotals com tax zero retorna imposto zero`` () =
 
 [<Fact>]
 let ``calcOrderTotals com tax 100% retorna totalTax igual ao totalAmount`` () =
-    let order = makeOrder 1 10 Complete Online
-    let items = [ toOrderItemWithInfo order (makeItem 1 100 3 10.0 1.0) ]
+    let order = order1
+    let items = [ toOrderItemWithInfo order itemG ]
 
     let totalAmount, avgTax = calcOrderTotals items
 
@@ -216,7 +227,7 @@ let ``calcOrderTotals itens com quantities diferentes são ponderados corretamen
     // item1: 10 × 10.0 = 100.0, tax 5 %  → taxAmt = 5.0
     // item2: 1  × 100.0 = 100.0, tax 20 % → taxAmt = 20.0
     // avgTax = 25.0 / 200.0 = 0.125
-    let order = makeOrder 1 10 Complete Online
+    let order = makeOrder 1 10 defaultDate Complete Online
 
     let items =
         [ toOrderItemWithInfo order (makeItem 1 100 10 10.0 0.05)
@@ -229,7 +240,7 @@ let ``calcOrderTotals itens com quantities diferentes são ponderados corretamen
 
 [<Fact>]
 let ``calcOrderTotals com muitos itens acumula corretamente`` () =
-    let order = makeOrder 1 10 Complete Online
+    let order = makeOrder 1 10 defaultDate Complete Online
     // 100 itens, cada um: qty=1, price=1.0, tax=10% → total = 100.0, avgTax = 0.10
     let items =
         [ 1..100 ]
@@ -246,12 +257,9 @@ let reportDate = DateTime(2026, 1, 1)
 
 [<Fact>]
 let ``reportOrderTotals gera totais corretos para múltiplos pedidos`` () =
-    let orders = [ makeOrder 1 10 Complete Online; makeOrder 2 20 Complete Physical ]
+    let orders = [ makeOrder 1 10 defaultDate Complete Online; makeOrder 2 20 defaultDate Complete Physical ]
 
-    let items =
-        [ makeItem 1 100 2 50.0 0.10 // 2×50 = 100, tax 10 % → taxAmt 10
-          makeItem 1 101 1 100.0 0.20 // 1×100 = 100, tax 20 % → taxAmt 20  ∴ total=200, avg=0.15
-          makeItem 2 200 4 25.0 0.10 ] // 4×25 = 100, tax 10 %               ∴ total=100, avg=0.10
+    let items = [ itemA; itemD; itemE ]
 
     let result =
         reportOrderTotals Complete reportDate orders items
@@ -271,9 +279,9 @@ let ``reportOrderTotals gera totais corretos para múltiplos pedidos`` () =
 
 [<Fact>]
 let ``reportOrderTotals exclui pedido sem itens`` () =
-    let orders = [ makeOrder 1 10 Complete Online; makeOrder 2 20 Complete Physical ] // pedido 2 não tem itens
+    let orders = [ makeOrder 1 10 defaultDate Complete Online; makeOrder 2 20 defaultDate Complete Physical ] // pedido 2 não tem itens
 
-    let items = [ makeItem 1 100 1 100.0 0.10 ]
+    let items = [ itemF ]
 
     let result = reportOrderTotals Complete reportDate orders items
 
@@ -282,7 +290,7 @@ let ``reportOrderTotals exclui pedido sem itens`` () =
 
 [<Fact>]
 let ``reportOrderTotals filtra pedidos por status`` () =
-    let orders = [ makeOrder 1 10 Complete Online; makeOrder 2 20 Pending Physical ] // status diferente
+    let orders = [ makeOrder 1 10 defaultDate Complete Online; makeOrder 2 20 defaultDate Pending Physical ] // status diferente
 
     let items = [ makeItem 1 100 1 50.0 0.10; makeItem 2 200 1 50.0 0.10 ]
 
@@ -294,7 +302,7 @@ let ``reportOrderTotals filtra pedidos por status`` () =
 [<Fact>]
 let ``reportOrderTotals filtra pedidos por data`` () =
     // makeOrder usa DateTime(2026,1,1) — consultar outra data não retorna nada
-    let orders = [ makeOrder 1 10 Complete Online ]
+    let orders = [ makeOrder 1 10 defaultDate Complete Online ]
     let items = [ makeItem 1 100 1 50.0 0.10 ]
 
     let outroDate = DateTime(2025, 6, 15)
