@@ -3,10 +3,10 @@
 open System
 open Xunit
 
-open Etl.Models
-open Etl.Utils 
-open Etl.Parsing   
-open Etl.Report
+open ETL.Models
+open ETL.Utils 
+open ETL.Parsing   
+open ETL.Report
 
 // Data padrão usada nos testes
 let defaultDate = DateTime(2026, 1, 1)

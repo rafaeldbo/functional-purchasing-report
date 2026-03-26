@@ -1,7 +1,4 @@
-namespace Etl
-
-open System
-open Etl.Models
+namespace ETL
 
 module Utils =
 

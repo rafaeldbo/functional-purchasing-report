@@ -1,7 +1,7 @@
-namespace Etl
+namespace ETL
 
 open System
-open Etl.Models
+open ETL.Models
 
 module Parsing =
 

@@ -1,4 +1,4 @@
-namespace Etl
+namespace ETL
 
 open System
 

@@ -1,8 +1,7 @@
-﻿namespace Etl
+﻿namespace ETL
 
-open System
-open Etl.Models
-open Etl.Utils
+open ETL.Models
+open ETL.Utils
 
 module Report =
 
