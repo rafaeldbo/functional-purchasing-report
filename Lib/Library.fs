@@ -16,6 +16,7 @@ module Report =
           Status = order.Status
           Origin = order.Origin }
 
+
     let joinOrderItems =
         innerJoin
             (fun (o: Order) -> o.OrderId)
@@ -34,15 +35,16 @@ module Report =
             ) (0.0, 0.0)
         |> fun (totalAmount, totalTaxAmount) -> (totalAmount, totalTaxAmount)
 
-    let reportOrderTotals (status: Status) (origin: Origin) (orders: Order list) (items: OrderItem list) =
+
+    let reportOrderTotals (orders: Order list) (items: OrderItem list) =
         joinOrderItems orders items
-        |> List.filter (fun orderItem -> orderItem.Status = status && orderItem.Origin = origin)
         |> List.groupBy (fun item -> item.OrderId)
         |> List.map (fun (orderId, orderItems) ->
             let totalAmount, totalTax = calcOrderTotals orderItems
             { OrderId = orderId
               TotalAmount = totalAmount
               TotalTaxes = totalTax })
+
 
     let reportMonthlyAverage (orders: Order list) (items: OrderItem list) =
         joinOrderItems orders items

@@ -16,7 +16,7 @@ let orderItems = readCSV (buildPath "../Data/order_item.csv")
                 |> Seq.choose id
                 |> Seq.toList
 
-let report = reportOrderTotals Pending Online orders orderItems
+let report = reportOrderTotals orders orderItems
 
 writeCSV 
     ["order_id"; "total_amount"; "total_taxes"] 
