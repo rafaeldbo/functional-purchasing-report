@@ -1,4 +1,5 @@
 id,client_id,order_date,status,origin
+,123,,Pending,P
 1,112,2024-10-02T03:05:39,Pending,P
 2,117,2024-08-17T03:05:39,Complete,O
 3,120,2024-09-10T03:05:39,Cancelled,O

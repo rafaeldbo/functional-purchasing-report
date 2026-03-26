@@ -8,8 +8,13 @@
   <ItemGroup>
     <Compile Include="Models.fs" />
     <Compile Include="Utils.fs" />
+    <Compile Include="CSVHandler.fs" />
     <Compile Include="Parsing.fs" />
     <Compile Include="Library.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FSharp.Data" Version="8.1.3" />
   </ItemGroup>
 
 </Project>
