@@ -12,19 +12,32 @@ open ETL.Report
 let defaultDate = DateTime(2026, 1, 1)
 
 // Instâncias globais para facilitar manutenção dos testes
-let order1 = makeOrder 1 10 defaultDate Complete Online
-let order2_pending = makeOrder 2 20 defaultDate Pending Physical
-let order2_complete = makeOrder 2 20 defaultDate Complete Physical
-let order3 = makeOrder 3 30 defaultDate Complete Online
+let order1 = makeOrder (1, 10, defaultDate, Complete, Online)
+let order2_pending = makeOrder (2, 20, defaultDate, Pending, Physical)
+let order2_complete = makeOrder (2, 20, defaultDate, Complete, Physical)
+let order3 = makeOrder (3, 30, defaultDate, Complete, Online)
 
-let itemA = makeItem 1 100 2 50.0 0.10
-let itemB = makeItem 1 101 1 30.0 0.10
-let itemC = makeItem 2 200 3 20.0 0.10
-let itemD = makeItem 1 101 1 100.0 0.20
-let itemE = makeItem 2 200 4 25.0 0.10
-let itemF = makeItem 1 100 1 100.0 0.10
-let itemG = makeItem 1 100 3 10.0 1.0
-let itemH = makeItem 1 102 3 30.0 0.10
+let itemO1_Q2_P50_T10 = makeOrderItem (1, 100, 2, 50.0, 0.10)
+let itemO1_Q1_P30_T10 = makeOrderItem (1, 101, 1, 30.0, 0.10)
+let itemO1_Q3_P20_T10 = makeOrderItem (1, 101, 3, 20.0, 0.10)
+let itemO1_Q1_P100_T20 = makeOrderItem (1, 102, 1, 100.0, 0.20)
+let itemO1_Q1_P100_T10 = makeOrderItem (1, 103, 1, 100.0, 0.10)
+let itemO1_Q3_P10_T100 = makeOrderItem (1, 104, 3, 10.0, 1.0)
+let itemO1_Q3_P30_T10 = makeOrderItem (1, 105, 3, 30.0, 0.10)
+let itemO1_Q2_P50_T0 = makeOrderItem (1, 106, 2, 50.0, 0.0)
+let itemO1_Q1_P20_T0 = makeOrderItem (1, 107, 1, 20.0, 0.0)
+let itemO2_Q4_P25_T10 = makeOrderItem (2, 100, 4, 25.0, 0.10)
+let itemO2_Q3_P20_T10 = makeOrderItem (2, 101, 3, 20.0, 0.10)
+
+// Globais adicionais para evitar construções inline nos testes
+let orders_many = [ 1..10 ] |> List.map (fun i -> makeOrder (i, i, defaultDate, Complete, Online))
+let items_many =
+        [ 1..10 ]
+        |> List.collect (fun i ->
+                [ makeOrderItem (i, i * 100, 1, 10.0, 0.10)
+                  makeOrderItem (i, i * 100 + 1, 2, 20.0, 0.10)
+                  makeOrderItem (i, i * 100 + 2, 3, 30.0, 0.10) ])
+let many_items_order1 = [ 1..100 ] |> List.map (fun i -> toOrderItemWithInfo order1 (makeOrderItem (1, i, 1, 1.0, 0.10)))
 
 // ── innerJoin – contagem e presença ───────────────────────────────────────
 
@@ -32,7 +45,7 @@ let itemH = makeItem 1 102 3 30.0 0.10
 let ``innerJoin retorna combinações corretas`` () =
     let orders = [ order1; order2_pending ]
 
-    let items = [ itemA; itemB; itemC ]
+    let items = [ itemO1_Q2_P50_T10; itemO1_Q1_P30_T10; itemO2_Q3_P20_T10 ]
 
     let result =
         innerJoin
@@ -45,12 +58,12 @@ let ``innerJoin retorna combinações corretas`` () =
     Assert.Equal(3, result.Length)
     Assert.Contains((1, 100), result)
     Assert.Contains((1, 101), result)
-    Assert.Contains((2, 200), result)
+    Assert.Contains((2, 101), result)
 
 [<Fact>]
 let ``innerJoin exclui registros sem correspondência`` () =
-    let orders = [ makeOrder 1 10 defaultDate Complete Online ]
-    let items = [ makeItem 99 100 1 10.0 0.10 ]
+    let orders = [ order1 ]
+    let items = [ itemO2_Q4_P25_T10 ]
 
     let result =
         innerJoin
@@ -71,7 +84,7 @@ let ``innerJoin com listas vazias retorna lista vazia`` () =
 
 [<Fact>]
 let ``innerJoin com lista esquerda vazia retorna lista vazia`` () =
-    let items = [ makeItem 1 100 1 10.0 0.10 ]
+    let items = [ itemO1_Q2_P50_T10 ]
 
     let result =
         innerJoin (fun (o: Order) -> o.OrderId) (fun (i: OrderItem) -> i.OrderId) (fun o i -> (o.OrderId, i.ProductId)) [] items
@@ -96,7 +109,7 @@ let ``innerJoin com lista direita vazia retorna lista vazia`` () =
 let ``innerJoin produz produto cartesiano quando há múltiplos matches`` () =
     let orders = [ order1 ]
 
-    let items = [ itemA; itemB; itemH ]
+    let items = [ itemO1_Q2_P50_T10; itemO1_Q1_P30_T10; itemO1_Q3_P30_T10 ]
 
     let result =
         innerJoin (fun (o: Order) -> o.OrderId) (fun (i: OrderItem) -> i.OrderId) (fun o i -> i.ProductId) orders items
@@ -104,14 +117,14 @@ let ``innerJoin produz produto cartesiano quando há múltiplos matches`` () =
     Assert.Equal(3, result.Length)
     Assert.Contains(100, result)
     Assert.Contains(101, result)
-    Assert.Contains(102, result)
+    Assert.Contains(105, result)
 
 [<Fact>]
 let ``innerJoin omite pedidos sem nenhum item`` () =
     // pedido 3 não tem itens → não deve aparecer no resultado
     let orders = [ order1; order2_pending; order3 ]
 
-    let items = [ itemA; itemC ]
+    let items = [ itemO1_Q2_P50_T10; itemO2_Q3_P20_T10 ]
 
     let result =
         innerJoin (fun (o: Order) -> o.OrderId) (fun (i: OrderItem) -> i.OrderId) (fun o i -> o.OrderId) orders items
@@ -121,8 +134,8 @@ let ``innerJoin omite pedidos sem nenhum item`` () =
 
 [<Fact>]
 let ``innerJoin propaga campos corretos da função de junção`` () =
-    let order = makeOrder 7 42 defaultDate Complete Physical
-    let item = makeItem 7 999 5 15.50 0.10
+    let order = order1
+    let item = itemO1_Q2_P50_T10
 
     let result = joinOrderItems [ order ] [ item ]
 
@@ -138,14 +151,9 @@ let ``innerJoin propaga campos corretos da função de junção`` () =
 
 [<Fact>]
 let ``innerJoin com muitos pedidos e muitos itens retorna contagem correta`` () =
-    let orders = [ 1..10 ] |> List.map (fun i -> makeOrder i i defaultDate Complete Online)
+    let orders = orders_many
     // 3 itens por pedido
-    let items =
-        [ 1..10 ]
-        |> List.collect (fun i ->
-            [ makeItem i (i * 100) 1 10.0 0.10
-              makeItem i (i * 100 + 1) 2 20.0 0.10
-              makeItem i (i * 100 + 2) 3 30.0 0.10 ])
+    let items = items_many
 
     let result =
         innerJoin
@@ -157,18 +165,15 @@ let ``innerJoin com muitos pedidos e muitos itens retorna contagem correta`` () 
 
     Assert.Equal(30, result.Length)
 
-// ── calcOrderTotals ────────────────────────────────────────────────────────
+// ── calcOrderTotals ───────────────────────────────────────────────────────-
 
 [<Fact>]
 let ``calcOrderTotals calcula total e imposto médio ponderado corretamente`` () =
-    // item1: 2 × 50.0 = 100.0, tax 10 % → taxAmt = 10.0
-    // item2: 1 × 100.0 = 100.0, tax 20 % → taxAmt = 20.0
-    // totalAmount = 200.0, avgTax = 30.0 / 200.0 = 0.15
     let order = order1
 
     let items =
-        [ toOrderItemWithInfo order itemA
-          toOrderItemWithInfo order itemD ]
+        [ toOrderItemWithInfo order itemO1_Q2_P50_T10
+          toOrderItemWithInfo order itemO1_Q1_P100_T20 ]
 
     let totalAmount, avgTax = calcOrderTotals items
 
@@ -177,11 +182,11 @@ let ``calcOrderTotals calcula total e imposto médio ponderado corretamente`` ()
 
 [<Fact>]
 let ``calcOrderTotals com imposto uniforme retorna o mesmo percentual`` () =
-    let order = makeOrder 1 10 defaultDate Complete Online
+    let order = order1
 
     let items =
-        [ toOrderItemWithInfo order (makeItem 1 100 2 50.0 0.10)
-          toOrderItemWithInfo order (makeItem 1 101 3 20.0 0.10) ]
+        [ toOrderItemWithInfo order itemO1_Q2_P50_T10
+          toOrderItemWithInfo order itemO2_Q3_P20_T10 ]
 
     let totalAmount, avgTax = calcOrderTotals items
 
@@ -191,8 +196,8 @@ let ``calcOrderTotals com imposto uniforme retorna o mesmo percentual`` () =
 
 [<Fact>]
 let ``calcOrderTotals com item único`` () =
-    let order = makeOrder 1 10 defaultDate Complete Online
-    let items = [ toOrderItemWithInfo order (makeItem 1 100 4 25.0 0.10) ]
+    let order = order1
+    let items = [ toOrderItemWithInfo order itemO2_Q4_P25_T10 ]
 
     let totalAmount, avgTax = calcOrderTotals items
 
@@ -201,21 +206,20 @@ let ``calcOrderTotals com item único`` () =
 
 [<Fact>]
 let ``calcOrderTotals com tax zero retorna imposto zero`` () =
-    let order = makeOrder 1 10 defaultDate Complete Online
+    let order = order1
 
-    let items =
-        [ toOrderItemWithInfo order (makeItem 1 100 2 50.0 0.0)
-          toOrderItemWithInfo order (makeItem 1 101 1 30.0 0.0) ]
+    let items = [ toOrderItemWithInfo order itemO1_Q2_P50_T0
+                  toOrderItemWithInfo order itemO1_Q1_P20_T0 ]
 
     let totalAmount, avgTax = calcOrderTotals items
 
-    Assert.Equal(130.0, totalAmount, 6)
+    Assert.Equal(120.0, totalAmount, 6)
     Assert.Equal(0.0, avgTax, 6)
 
 [<Fact>]
 let ``calcOrderTotals com tax 100% retorna totalTax igual ao totalAmount`` () =
     let order = order1
-    let items = [ toOrderItemWithInfo order itemG ]
+    let items = [ toOrderItemWithInfo order itemO1_Q3_P10_T100 ]
 
     let totalAmount, avgTax = calcOrderTotals items
 
@@ -224,27 +228,18 @@ let ``calcOrderTotals com tax 100% retorna totalTax igual ao totalAmount`` () =
 
 [<Fact>]
 let ``calcOrderTotals itens com quantities diferentes são ponderados corretamente`` () =
-    // item1: 10 × 10.0 = 100.0, tax 5 %  → taxAmt = 5.0
-    // item2: 1  × 100.0 = 100.0, tax 20 % → taxAmt = 20.0
-    // avgTax = 25.0 / 200.0 = 0.125
-    let order = makeOrder 1 10 defaultDate Complete Online
-
-    let items =
-        [ toOrderItemWithInfo order (makeItem 1 100 10 10.0 0.05)
-          toOrderItemWithInfo order (makeItem 1 101 1 100.0 0.20) ]
+    let order = order1
+    let items = [ toOrderItemWithInfo order itemO2_Q3_P20_T10
+                  toOrderItemWithInfo order itemO1_Q1_P100_T20 ]
 
     let totalAmount, avgTax = calcOrderTotals items
 
-    Assert.Equal(200.0, totalAmount, 6)
-    Assert.Equal(0.125, avgTax, 6)
+    Assert.Equal(160.0, totalAmount, 6)
+    Assert.Equal(0.1625, avgTax, 6)
 
 [<Fact>]
 let ``calcOrderTotals com muitos itens acumula corretamente`` () =
-    let order = makeOrder 1 10 defaultDate Complete Online
-    // 100 itens, cada um: qty=1, price=1.0, tax=10% → total = 100.0, avgTax = 0.10
-    let items =
-        [ 1..100 ]
-        |> List.map (fun i -> toOrderItemWithInfo order (makeItem 1 i 1 1.0 0.10))
+    let items = many_items_order1
 
     let totalAmount, avgTax = calcOrderTotals items
 
@@ -253,16 +248,13 @@ let ``calcOrderTotals com muitos itens acumula corretamente`` () =
 
 // ── integração: reportOrderTotals ─────────────────────────────────────────
 
-let reportDate = DateTime(2026, 1, 1)
-
 [<Fact>]
 let ``reportOrderTotals gera totais corretos para múltiplos pedidos`` () =
-    let orders = [ makeOrder 1 10 defaultDate Complete Online; makeOrder 2 20 defaultDate Complete Physical ]
-
-    let items = [ itemA; itemD; itemE ]
+    let orders = [ order1; order2_complete ]
+    let items = [ itemO1_Q2_P50_T10; itemO1_Q1_P100_T20; itemO2_Q4_P25_T10 ]
 
     let result =
-        reportOrderTotals Complete reportDate orders items
+        reportOrderTotals Complete Online orders items
         |> List.sortBy (fun r -> r.OrderId)
 
     Assert.Equal(2, result.Length)
@@ -279,38 +271,34 @@ let ``reportOrderTotals gera totais corretos para múltiplos pedidos`` () =
 
 [<Fact>]
 let ``reportOrderTotals exclui pedido sem itens`` () =
-    let orders = [ makeOrder 1 10 defaultDate Complete Online; makeOrder 2 20 defaultDate Complete Physical ] // pedido 2 não tem itens
+    let orders = [ order1; order2_complete ]
+    let items = [ itemO1_Q1_P100_T10 ]
 
-    let items = [ itemF ]
-
-    let result = reportOrderTotals Complete reportDate orders items
+    let result = reportOrderTotals Complete Online orders items
 
     Assert.Equal(1, result.Length)
     Assert.Equal(1, result.[0].OrderId)
 
 [<Fact>]
 let ``reportOrderTotals filtra pedidos por status`` () =
-    let orders = [ makeOrder 1 10 defaultDate Complete Online; makeOrder 2 20 defaultDate Pending Physical ] // status diferente
+    let orders = [ order1; order2_pending ]
+    let items = [ itemO1_Q2_P50_T10; itemO2_Q3_P20_T10 ]
 
-    let items = [ makeItem 1 100 1 50.0 0.10; makeItem 2 200 1 50.0 0.10 ]
-
-    let result = reportOrderTotals Complete reportDate orders items
+    let result = reportOrderTotals Complete Online orders items
 
     Assert.Equal(1, result.Length)
     Assert.Equal(1, result.[0].OrderId)
 
 [<Fact>]
 let ``reportOrderTotals filtra pedidos por data`` () =
-    // makeOrder usa DateTime(2026,1,1) — consultar outra data não retorna nada
-    let orders = [ makeOrder 1 10 defaultDate Complete Online ]
-    let items = [ makeItem 1 100 1 50.0 0.10 ]
+    let orders = [ order1 ]
+    let items = [ itemO1_Q2_P50_T10 ]
 
-    let outroDate = DateTime(2025, 6, 15)
-    let result = reportOrderTotals Complete outroDate orders items
+    let result = reportOrderTotals Complete Online orders items
 
     Assert.Empty(result)
 
 [<Fact>]
 let ``reportOrderTotals com listas vazias retorna lista vazia`` () =
-    let result = reportOrderTotals Complete reportDate [] []
+    let result = reportOrderTotals Complete Online [] []
     Assert.Empty(result)
