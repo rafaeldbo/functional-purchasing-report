@@ -43,3 +43,21 @@ module Report =
             { OrderId = orderId
               TotalAmount = totalAmount
               TotalTaxes = totalTax })
+
+    let reportMonthlyAverage (orders: Order list) (items: OrderItem list) =
+        joinOrderItems orders items
+        |> List.groupBy (fun oI -> (oI.OrderDate.Year, oI.OrderDate.Month))
+        |> List.map (fun ((year, month), orderItems) ->
+            let MonthlyOrderTotals =
+                orderItems
+                |> List.groupBy (fun oi -> oi.OrderId)
+                |> List.map (fun (_, itemsOfOrder) -> calcOrderTotals itemsOfOrder)
+            let count = float (List.length MonthlyOrderTotals)
+            let sumAmount = MonthlyOrderTotals |> List.sumBy fst
+            let sumTax = MonthlyOrderTotals |> List.sumBy snd
+            let avgAmount = if count = 0.0 then 0.0 else sumAmount / count
+            let avgTax = if count = 0.0 then 0.0 else sumTax / count
+            { Year = year
+              Month = month
+              AverageAmount = avgAmount
+              AverageTaxes = avgTax })

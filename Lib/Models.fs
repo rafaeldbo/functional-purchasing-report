@@ -47,8 +47,15 @@ module Models =
         Origin: Origin
     }
 
-    type PurchasingReport = {
+    type OrderTotalsReport = {
         OrderId: Id
         TotalAmount: Price
         TotalTaxes: Tax
+    }
+
+    type MonthlyAverageReport = {
+        Year: int
+        Month: int
+        AverageAmount: Price
+        AverageTaxes: Tax
     }

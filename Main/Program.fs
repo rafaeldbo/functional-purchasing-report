@@ -20,6 +20,16 @@ let report = reportOrderTotals Pending Online orders orderItems
 
 writeCSV 
     ["order_id"; "total_amount"; "total_taxes"] 
-    (buildPath "report.csv") 
-    (fun (r: PurchasingReport) -> [r.OrderId.ToString(); r.TotalAmount.ToString(); r.TotalTaxes.ToString()]) 
+    (buildPath "report_order_totals.csv") 
+    (fun (r: OrderTotalsReport) -> [r.OrderId.ToString(); r.TotalAmount.ToString(); r.TotalTaxes.ToString()]) 
     report
+printfn "Order Totals Report: %A" report
+
+let monthlyAverageReport = reportMonthlyAverage orders orderItems
+
+writeCSV 
+    ["year"; "month"; "average_amount"; "average_taxes"] 
+    (buildPath "report_monthly_average.csv") 
+    (fun (r: MonthlyAverageReport) -> [r.Year.ToString(); r.Month.ToString(); r.AverageAmount.ToString(); r.AverageTaxes.ToString()]) 
+    monthlyAverageReport
+printfn "Monthly Average Report: %A" monthlyAverageReport
