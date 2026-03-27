@@ -175,10 +175,10 @@ let ``calcOrderTotals calcula total e imposto médio ponderado corretamente`` ()
         [ toOrderItemWithInfo order itemO1_Q2_P50_T10
           toOrderItemWithInfo order itemO1_Q1_P100_T20 ]
 
-    let totalAmount, avgTax = calcOrderTotals items
+    let totalAmount, totalTax = calcOrderTotals items
 
     Assert.Equal(200.0, totalAmount, 6)
-    Assert.Equal(0.15, avgTax, 6)
+    Assert.Equal(30.0, totalTax, 6)
 
 [<Fact>]
 let ``calcOrderTotals com imposto uniforme retorna o mesmo percentual`` () =
@@ -188,21 +188,21 @@ let ``calcOrderTotals com imposto uniforme retorna o mesmo percentual`` () =
         [ toOrderItemWithInfo order itemO1_Q2_P50_T10
           toOrderItemWithInfo order itemO2_Q3_P20_T10 ]
 
-    let totalAmount, avgTax = calcOrderTotals items
+    let totalAmount, totalTax = calcOrderTotals items
 
     // 2×50 + 3×20 = 160.0
     Assert.Equal(160.0, totalAmount, 6)
-    Assert.Equal(0.10, avgTax, 6)
+    Assert.Equal(16.0, totalTax, 6)
 
 [<Fact>]
 let ``calcOrderTotals com item único`` () =
     let order = order1
     let items = [ toOrderItemWithInfo order itemO2_Q4_P25_T10 ]
 
-    let totalAmount, avgTax = calcOrderTotals items
+    let totalAmount, totalTax = calcOrderTotals items
 
     Assert.Equal(100.0, totalAmount, 6)
-    Assert.Equal(0.10, avgTax, 6)
+    Assert.Equal(10.0, totalTax, 6)
 
 [<Fact>]
 let ``calcOrderTotals com tax zero retorna imposto zero`` () =
@@ -211,20 +211,20 @@ let ``calcOrderTotals com tax zero retorna imposto zero`` () =
     let items = [ toOrderItemWithInfo order itemO1_Q2_P50_T0
                   toOrderItemWithInfo order itemO1_Q1_P20_T0 ]
 
-    let totalAmount, avgTax = calcOrderTotals items
+    let totalAmount, totalTax = calcOrderTotals items
 
     Assert.Equal(120.0, totalAmount, 6)
-    Assert.Equal(0.0, avgTax, 6)
+    Assert.Equal(0.0, totalTax, 6)
 
 [<Fact>]
 let ``calcOrderTotals com tax 100% retorna totalTax igual ao totalAmount`` () =
     let order = order1
     let items = [ toOrderItemWithInfo order itemO1_Q3_P10_T100 ]
 
-    let totalAmount, avgTax = calcOrderTotals items
+    let totalAmount, totalTax = calcOrderTotals items
 
     Assert.Equal(30.0, totalAmount, 6)
-    Assert.Equal(1.0, avgTax, 6)
+    Assert.Equal(30.0, totalTax, 6)
 
 [<Fact>]
 let ``calcOrderTotals itens com quantities diferentes são ponderados corretamente`` () =
@@ -232,19 +232,19 @@ let ``calcOrderTotals itens com quantities diferentes são ponderados corretamen
     let items = [ toOrderItemWithInfo order itemO2_Q3_P20_T10
                   toOrderItemWithInfo order itemO1_Q1_P100_T20 ]
 
-    let totalAmount, avgTax = calcOrderTotals items
+    let totalAmount, totalTax = calcOrderTotals items
 
     Assert.Equal(160.0, totalAmount, 6)
-    Assert.Equal(0.1625, avgTax, 6)
+    Assert.Equal(26.0, totalTax, 6)
 
 [<Fact>]
 let ``calcOrderTotals com muitos itens acumula corretamente`` () =
     let items = many_items_order1
 
-    let totalAmount, avgTax = calcOrderTotals items
+    let totalAmount, totalTax = calcOrderTotals items
 
     Assert.Equal(100.0, totalAmount, 6)
-    Assert.Equal(0.10, avgTax, 6)
+    Assert.Equal(10.0, totalTax, 6)
 
 // ── integração: reportOrderTotals ─────────────────────────────────────────
 
@@ -253,8 +253,9 @@ let ``reportOrderTotals gera totais corretos para múltiplos pedidos`` () =
     let orders = [ order1; order2_complete ]
     let items = [ itemO1_Q2_P50_T10; itemO1_Q1_P100_T20; itemO2_Q4_P25_T10 ]
 
+    let joined = joinOrderItems orders items
     let result =
-        reportOrderTotals Complete Online orders items
+        reportOrderTotals joined
         |> List.sortBy (fun r -> r.OrderId)
 
     Assert.Equal(2, result.Length)
@@ -262,19 +263,21 @@ let ``reportOrderTotals gera totais corretos para múltiplos pedidos`` () =
     let r1 = result.[0]
     Assert.Equal(1, r1.OrderId)
     Assert.Equal(200.0, r1.TotalAmount, 6)
-    Assert.Equal(0.15, r1.TotalTaxes, 6)
+    Assert.Equal(30.0, r1.TotalTaxes, 6)
 
     let r2 = result.[1]
     Assert.Equal(2, r2.OrderId)
     Assert.Equal(100.0, r2.TotalAmount, 6)
-    Assert.Equal(0.10, r2.TotalTaxes, 6)
+    Assert.Equal(10.0, r2.TotalTaxes, 6)
 
 [<Fact>]
 let ``reportOrderTotals exclui pedido sem itens`` () =
     let orders = [ order1; order2_complete ]
     let items = [ itemO1_Q1_P100_T10 ]
 
-    let result = reportOrderTotals Complete Online orders items
+    let joined = joinOrderItems orders items
+
+    let result = reportOrderTotals joined
 
     Assert.Equal(1, result.Length)
     Assert.Equal(1, result.[0].OrderId)
@@ -284,7 +287,10 @@ let ``reportOrderTotals filtra pedidos por status`` () =
     let orders = [ order1; order2_pending ]
     let items = [ itemO1_Q2_P50_T10; itemO2_Q3_P20_T10 ]
 
-    let result = reportOrderTotals Complete Online orders items
+    let filteredOrders = orders |> List.filter (fun o -> o.Status = Complete)
+    let joined = joinOrderItems filteredOrders items
+
+    let result = reportOrderTotals joined
 
     Assert.Equal(1, result.Length)
     Assert.Equal(1, result.[0].OrderId)
@@ -294,11 +300,14 @@ let ``reportOrderTotals filtra pedidos por data`` () =
     let orders = [ order1 ]
     let items = [ itemO1_Q2_P50_T10 ]
 
-    let result = reportOrderTotals Complete Online orders items
+    let filteredOrders = orders |> List.filter (fun o -> o.OrderDate = DateTime(2027, 1, 1))
+    let joined = joinOrderItems filteredOrders items
+
+    let result = reportOrderTotals joined
 
     Assert.Empty(result)
 
 [<Fact>]
 let ``reportOrderTotals com listas vazias retorna lista vazia`` () =
-    let result = reportOrderTotals Complete Online [] []
+    let result = joinOrderItems [] [] |> reportOrderTotals
     Assert.Empty(result)
