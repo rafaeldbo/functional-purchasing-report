@@ -13,4 +13,8 @@
     <ProjectReference Include="..\Lib\Lib.fsproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Argu" Version="6.2.5" />
+  </ItemGroup>
+
 </Project>

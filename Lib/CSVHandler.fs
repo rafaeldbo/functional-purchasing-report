@@ -6,9 +6,8 @@ open FSharp.Data
 open ETL.Models
 
 module CSVHandler =
-
     let buildPath (relativePath: string) =
-        Path.Combine(__SOURCE_DIRECTORY__, relativePath) |> Path.GetFullPath
+        Path.Combine(Directory.GetCurrentDirectory(), relativePath) |> Path.GetFullPath
 
     let readCSV (filePath: string) =
         let csv = CsvFile.Load filePath
