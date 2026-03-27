@@ -3,6 +3,8 @@ namespace ETL
 open System.IO
 open FSharp.Data
 
+open ETL.Models
+
 module CSVHandler =
 
     let buildPath (relativePath: string) =
@@ -28,17 +30,29 @@ module CSVHandler =
 
     let writeCSV (columns: string list) (filePath: string) (mapper: 'T -> string list) (entries: 'T list) =
         
-        // 1. Montamos o template de cabeçalho unindo as colunas com vírgulas
         let header = String.concat "," columns
         let template = CsvFile.Parse(header + "\n", hasHeaders = true)
 
-        // 2. Iteramos sobre a lista de records
         let rows =
             entries
-            |> Seq.map (fun record ->
+            |> List.map (fun record ->
                 let row = record |> mapper |> List.toArray
                 CsvRow(template, row)
             )
 
-        let csvFinal = template.Append rows 
-        csvFinal.Save filePath
+        let csv = template.Append rows 
+        csv.Save filePath
+
+    let saveOrderTotalsReport (filePath: string) (report: OrderTotalsReport list) =
+        writeCSV 
+            ["order_id"; "total_amount"; "total_taxes"] 
+            filePath 
+            (fun (r: OrderTotalsReport) -> [r.OrderId.ToString(); r.TotalAmount.ToString(); r.TotalTaxes.ToString()]) 
+            report
+
+    let saveMonthlyAverageReport (filePath: string) (report: MonthlyAverageReport list) =
+        writeCSV 
+            ["year"; "month"; "average_amount"; "average_taxes"] 
+            filePath 
+            (fun (r: MonthlyAverageReport) -> [r.Year.ToString(); r.Month.ToString(); r.AverageAmount.ToString(); r.AverageTaxes.ToString()]) 
+            report
