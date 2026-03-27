@@ -21,16 +21,16 @@ module Parsing =
         | _ -> None
 
     let parseStatus (s: string): Status option =
-        match s with
-        | "Pending" -> Some Pending
-        | "Complete" -> Some Complete
-        | "Cancelled" -> Some Cancelled
+        match s.ToLowerInvariant() with
+        | "pending" | "pend" -> Some Pending
+        | "complete" | "cmpl" -> Some Complete
+        | "cancelled" | "canc" -> Some Cancelled
         | _ -> None
 
     let parseOrigin (s: string): Origin option =
-        match s with
-        | "P" -> Some Physical
-        | "O" -> Some Online
+        match s.ToLowerInvariant() with
+        | "physical" | "p" -> Some Physical
+        | "online" | "o" -> Some Online
         | _ -> None
 
     let parseOrder (orderId: string, clientId: string, orderDate: string, status: string, origin: string) =
