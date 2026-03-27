@@ -36,8 +36,8 @@ module Report =
         |> fun (totalAmount, totalTaxAmount) -> (totalAmount, totalTaxAmount)
 
 
-    let reportOrderTotals (orders: Order list) (items: OrderItem list) =
-        joinOrderItems orders items
+    let reportOrderTotals (joinedOrderItems: OrderItemWithOrderInfo list) =
+        joinedOrderItems
         |> List.groupBy (fun item -> item.OrderId)
         |> List.map (fun (orderId, orderItems) ->
             let totalAmount, totalTax = calcOrderTotals orderItems
@@ -46,8 +46,8 @@ module Report =
               TotalTaxes = totalTax })
 
 
-    let reportMonthlyAverage (orders: Order list) (items: OrderItem list) =
-        joinOrderItems orders items
+    let reportMonthlyAverage (joinedOrderItems: OrderItemWithOrderInfo list)=
+        joinedOrderItems
         |> List.groupBy (fun oI -> (oI.OrderDate.Year, oI.OrderDate.Month))
         |> List.map (fun ((year, month), orderItems) ->
             let MonthlyOrderTotals =
