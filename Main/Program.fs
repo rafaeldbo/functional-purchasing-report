@@ -1,15 +1,17 @@
 ﻿open System
 open Argu
 
-open ETL.CSVHandler
 open ETL.Models
+open ETL.CSVHandler
+open ETL.SQLHandler
 open ETL.Parsing
 open ETL.Report
 
 // 1. Definimos nossos argumentos como uma Discriminated Union
 type CliArguments =
     | [<MainCommand>] Input of order:string * orderItem:string
-    | [<AltCommandLine("-o")>] Output of output:string
+    | [<AltCommandLine("-csv")>] CSV of csv:string
+    | [<AltCommandLine("-db")>] SQL of sql:string
     | [<AltCommandLine("-ma")>] Monthly_Average
     | [<AltCommandLine("-s")>] Status of status:string
     | [<AltCommandLine("-ori")>] Origin of origin:string
@@ -19,7 +21,8 @@ type CliArguments =
             member this.Usage =
                 match this with
                 | Input _ -> "Especifica os arquivos de entrada para os pedidos e itens de pedido."
-                | Output _ -> "Especifica o arquivo de saída para o relatório gerado (Default: report_output.csv)."
+                | CSV _ -> "Especifica o arquivo CSV de saída para o relatório gerado (Default: report_output.csv)."
+                | SQL _ -> "Especifica o arquivo SQL onde salvar o relatório (se informado, ignora --output)."
                 | Monthly_Average -> "Calcula a média mensal dos pedidos."
                 | Origin _ -> "Filtra por um ou mais origens."
                 | Status _ -> "Filtra por um ou mais status."
@@ -45,12 +48,15 @@ let main argv =
         let reportType = 
             if results.Contains <@ Monthly_Average @> 
                 then MonthlyAverage
-                else OrderTotals
+            else OrderTotals
 
-        let outputPath = 
-            buildPath (if results.Contains <@ Output @> 
-                then results.GetResult <@ Output @>
+        let csvPath = 
+            buildPath (if results.Contains <@ CSV @> 
+                then results.GetResult <@ CSV @>
                 else "report_output.csv")
+
+        let dbPathOpt =
+            results.TryGetResult <@ SQL @> |> Option.map buildSQLConnectionString
 
         let origins = 
             results.GetResults <@ Origin @>
@@ -75,14 +81,25 @@ let main argv =
             |> List.filter (fun oi -> 
                 (origins.IsEmpty || List.contains oi.Origin origins) &&
                 (statuses.IsEmpty || List.contains oi.Status statuses))
-    
+
+
         match reportType with
         | OrderTotals ->
-            filteredJoinedOrderItems |> reportOrderTotals |> saveOrderTotalsReport outputPath
+            let saveOrderTotalsReport = 
+                match dbPathOpt with
+                | Some dbPath -> saveOrderTotalsReportOnSQL dbPath
+                | None -> saveOrderTotalsReportOnCSV csvPath
+            filteredJoinedOrderItems |> reportOrderTotals |> saveOrderTotalsReport
         | MonthlyAverage ->
-            filteredJoinedOrderItems |> reportMonthlyAverage |> saveMonthlyAverageReport outputPath
+            let saveMonthlyAverageReport = 
+                match dbPathOpt with
+                | Some dbPath -> saveMonthlyAverageReportOnSQL dbPath
+                | None -> saveMonthlyAverageReportOnCSV csvPath
+            filteredJoinedOrderItems |> reportMonthlyAverage |> saveMonthlyAverageReport
 
-        printfn "Relatório gerado com sucesso em: %s" outputPath
+        match dbPathOpt with
+        | Some dbPath -> printfn "Relatório salvo com sucesso no banco de dados"
+        | None -> printfn "Relatório gerado com sucesso em: %s" csvPath
 
         0 
         

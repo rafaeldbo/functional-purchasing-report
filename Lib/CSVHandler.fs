@@ -42,14 +42,14 @@ module CSVHandler =
         let csv = template.Append rows 
         csv.Save filePath
 
-    let saveOrderTotalsReport (filePath: string) (report: OrderTotalsReport list) =
+    let saveOrderTotalsReportOnCSV (filePath: string) (report: OrderTotalsReport list) =
         writeCSV 
             ["order_id"; "total_amount"; "total_taxes"] 
             filePath 
             (fun (r: OrderTotalsReport) -> [r.OrderId.ToString(); r.TotalAmount.ToString(); r.TotalTaxes.ToString()]) 
             report
 
-    let saveMonthlyAverageReport (filePath: string) (report: MonthlyAverageReport list) =
+    let saveMonthlyAverageReportOnCSV (filePath: string) (report: MonthlyAverageReport list) =
         writeCSV 
             ["year"; "month"; "average_amount"; "average_taxes"] 
             filePath 
